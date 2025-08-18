@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fashion Item & Number Classifier</title>
+    <link rel="stylesheet" href="static/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Fashion Item & Number Classifier</h1>
+        <p>Upload a 28x28 grayscale image to predict either a fashion item (Fashion MNIST) or a handwritten digit (MNIST).</p>
+        <div class="columns">
+            <div class="form-section">
+                <div class="section-title">Fashion Item Prediction</div>
+                <form id="fashion-form">
+                    <input type="file" id="fashion-image" accept="image/*" required><br>
+                    <button type="submit">Predict Fashion Item</button>
+                </form>
+                <img id="fashion-preview" class="preview" src="#" alt="Fashion Image Preview"/>
+                <div id="fashion-result" class="result"></div>
+            </div>
+            <div class="form-section">
+                <div class="section-title">Number Prediction</div>
+                <form id="number-form">
+                    <input type="file" id="number-image" accept="image/*" required><br>
+                    <button type="submit">Predict Number</button>
+                </form>
+                <img id="number-preview" class="preview" src="#" alt="Number Image Preview"/>
+                <div id="number-result" class="result"></div>
+                <hr style="width:80%;margin:24px 0 12px 0;">
+                <div style="text-align:center;font-weight:600;margin-bottom:8px;">Or draw a digit:</div>
+                <canvas id="number-canvas" width="196" height="196"></canvas>
+                <div class="canvas-controls">
+                    <button id="clear-canvas" type="button" class="canvas-button">Clear</button>
+                    <button id="predict-canvas" type="button" class="canvas-button">Predict Canvas</button>
+                </div>
+                <div id="canvas-result" class="result"></div>
+            </div>
+        </div>
+    </div>
+    <script>
+        // Fashion form
+        const fashionForm = document.getElementById('fashion-form');
+        const fashionResult = document.getElementById('fashion-result');
+        const fashionInput = document.getElementById('fashion-image');
+        const fashionPreview = document.getElementById('fashion-preview');
+
+        fashionForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            fashionResult.innerHTML = '<span class="prediction-label">Predicting...</span>';
+            const formData = new FormData();
+            formData.append('file', fashionInput.files[0]);
+            try {
+                const response = await fetch('/predict_fashion', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                if (data.prediction) {
+                    fashionResult.innerHTML = `<span class="prediction-label">Prediction: ${data.prediction}</span>` +
+                        (data.confidence !== undefined
+                            ? `<span class="accuracy-label">Confidence: ${data.confidence}%</span>`
+                            : '');
+                } else {
+                    fashionResult.innerHTML = `<span class="error-label">Error: ${data.error || 'Unknown error'}</span>`;
+                }
+            } catch (err) {
+                fashionResult.innerHTML = `<span class="error-label">Error: ${err.message}</span>`;
+            }
+        });
+
+        fashionInput.addEventListener('change', function() {
+            const file = this.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    fashionPreview.src = e.target.result;
+                    fashionPreview.style.display = 'block';
+                }
+                reader.readAsDataURL(file);
+            } else {
+                fashionPreview.style.display = 'none';
+            }
+        });
+
+        // Number form
+        const numberForm = document.getElementById('number-form');
+        const numberResult = document.getElementById('number-result');
+        const numberInput = document.getElementById('number-image');
+        const numberPreview = document.getElementById('number-preview');
+
+        numberForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            numberResult.innerHTML = '<span class="prediction-label">Predicting...</span>';
+            const formData = new FormData();
+            formData.append('file', numberInput.files[0]);
+            try {
+                const response = await fetch('/predict_number', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                if (data.prediction) {
+                    numberResult.innerHTML = `<span class="prediction-label">Prediction: ${data.prediction}</span>` +
+                        (data.confidence !== undefined
+                            ? `<span class="accuracy-label">Confidence: ${data.confidence}%</span>`
+                            : '');
+                } else {
+                    numberResult.innerHTML = `<span class="error-label">Error: ${data.error || 'Unknown error'}</span>`;
+                }
+            } catch (err) {
+                numberResult.innerHTML = `<span class="error-label">Error: ${err.message}</span>`;
+            }
+        });
+
+        numberInput.addEventListener('change', function() {
+            const file = this.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    numberPreview.src = e.target.result;
+                    numberPreview.style.display = 'block';
+                }
+                reader.readAsDataURL(file);
+            } else {
+                numberPreview.style.display = 'none';
+            }
+        });
+
+        // Canvas Drawing for Number Prediction
+        const canvas = document.getElementById('number-canvas');
+        const ctx = canvas.getContext('2d');
+        let drawing = false;
+
+        // Set up canvas: black background
+        ctx.fillStyle = "#000";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        canvas.addEventListener('mousedown', (e) => {
+            drawing = true;
+            ctx.lineWidth = 16;
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = "#fff"; // White writing
+            ctx.beginPath();
+            ctx.moveTo(e.offsetX, e.offsetY);
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (drawing) {
+                ctx.lineTo(e.offsetX, e.offsetY);
+                ctx.stroke();
+            }
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            drawing = false;
+        });
+
+        canvas.addEventListener('mouseleave', () => {
+            drawing = false;
+        });
+
+        document.getElementById('clear-canvas').addEventListener('click', () => {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "#000"; // Black background on clear
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            document.getElementById('canvas-result').innerHTML = '';
+        });
+
+        document.getElementById('predict-canvas').addEventListener('click', async () => {
+            // Convert canvas to 28x28 grayscale PNG
+            const smallCanvas = document.createElement('canvas');
+            smallCanvas.width = 28;
+            smallCanvas.height = 28;
+            const smallCtx = smallCanvas.getContext('2d');
+            smallCtx.drawImage(canvas, 0, 0, 28, 28);
+
+            // Convert to blob
+            smallCanvas.toBlob(async function(blob) {
+                const formData = new FormData();
+                formData.append('file', blob, 'canvas.png');
+                const canvasResult = document.getElementById('canvas-result');
+                canvasResult.innerHTML = '<span class="prediction-label">Predicting...</span>';
+                try {
+                    const response = await fetch('/predict_number', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const data = await response.json();
+                    if (data.prediction) {
+                        canvasResult.innerHTML = `<span class="prediction-label">Prediction: ${data.prediction}</span>` +
+                            (data.confidence !== undefined
+                                ? `<span class="accuracy-label">Confidence: ${data.confidence}%</span>`
+                                : '');
+                    } else {
+                        canvasResult.innerHTML = `<span class="error-label">Error: ${data.error || 'Unknown error'}</span>`;
+                    }
+                } catch (err) {
+                    canvasResult.innerHTML = `<span class="error-label">Error: ${err.message}</span>`;
+                }
+            }, 'image/png');
+        });
+    </script>
+</body>
+</html>
